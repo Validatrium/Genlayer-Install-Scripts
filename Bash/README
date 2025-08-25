@@ -1,0 +1,128 @@
+# 🚀 GenLayer Validator Auto-Installer with Backup (Validatrium Edition)
+
+This project provides a **one-shot Bash installer** for [GenLayer](https://genlayer.xyz) validator nodes.  
+It automatically:
+
+- 📥 Installs system prerequisites (Docker, curl, jq, etc.)
+- ⬇️ Downloads the latest (or chosen) GenLayer node release
+- ⚙️ Generates a clean `config.yaml` with your ZKSync URLs
+- 🔑 Creates a **validator account** and saves its address
+- 💾 Performs an **immediate encrypted key backup**
+- 🗄 Configures **systemd service** for the node
+- ⏰ Sets up a **systemd timer** for **daily encrypted key backups**
+- 📊 Exposes Prometheus metrics at `:9153/metrics`
+
+Perfect for production deployments, testnet setups, or migration to a new server.
+
+---
+
+## 📦 Features
+
+- Interactive prompts (asks for URLs, passwords, etc.)
+- Non-interactive mode (CI/CD friendly, provide flags or env vars)
+- Secure storage of secrets in `/etc/genlayer/secret/`
+- Automatic **daily backup** to `/var/backups/genlayer/`
+- Systemd integration (`genlayernode.service`, `genlayer-backup.timer`)
+- Optional WebDriver startup via Docker Compose if provided by release
+
+---
+
+## 🛠 Usage
+
+### 1. Clone or download the script
+```bash
+curl -O https://raw.githubusercontent.com/yourrepo/install-genlayer.sh
+chmod +x install-genlayer.sh
+```
+
+### 2. Run interactively (prompts for input)
+```bash
+sudo ./install-genlayer.sh
+```
+
+You’ll be asked for:
+- ZKSync HTTP RPC URL
+- ZKSync WebSocket URL
+- Validator password (hidden input)
+- Backup encryption passphrase (hidden input)
+- Node version (leave blank for latest)
+
+### 3. Run non-interactive (CI/CD / Ansible / automation)
+```bash
+printf '%s' 'NODE_PASSWORD' > /root/node_pw.txt
+printf '%s' 'BACKUP_PASSPHRASE' > /root/backup_pw.txt
+
+sudo ./install-genlayer.sh   -v v0.3.10   --zksync-http "https://your-zksync-http"   --zksync-ws   "wss://your-zksync-ws"   --password-file /root/node_pw.txt   --backup-pass-file /root/backup_pw.txt   --non-interactive
+```
+
+---
+
+## 🔐 Key Management
+
+- Validator password → `/etc/genlayer/secret/node_password`
+- Backup passphrase → `/etc/genlayer/secret/backup_passphrase`
+- Validator address → `/etc/genlayer/validator.address`
+- Backups → `/var/backups/genlayer/validator-YYYYMMDDTHHMMSSZ.key`
+
+⚠️ **Keep these files safe!** Losing your password or backup passphrase means losing access to your validator.
+
+---
+
+## ♻️ Restoring from Backup
+
+On a fresh server:
+
+1. Run the installer with the same ZKSync URLs.
+2. Import your encrypted key backup:
+   ```bash
+   cd /opt/genlayer/current
+   ./bin/genlayernode account import      --password "$(cat /etc/genlayer/secret/node_password)"      --passphrase "$(cat /etc/genlayer/secret/backup_passphrase)"      --path "/root/validator-*.key"      -c "$(pwd)/configs/node/config.yaml"      --setup
+   ```
+3. Restart service:
+   ```bash
+   systemctl restart genlayernode.service
+   ```
+
+---
+
+## 📊 Monitoring
+
+- Metrics: [http://localhost:9153/metrics](http://localhost:9153/metrics)  
+- Health: [http://localhost:9153/health](http://localhost:9153/health)  
+- Balance: [http://localhost:9153/balance](http://localhost:9153/balance)  
+
+Integrate with **Prometheus + Grafana** for full dashboards.
+
+---
+
+## 🖼 Branding
+
+
+```
+
+                          ⚡ Validatrium ⚡
+```
+
+---
+
+## ⚡ Systemd Cheat Sheet
+
+- Start: `systemctl start genlayernode`
+- Stop: `systemctl stop genlayernode`
+- Logs: `journalctl -u genlayernode -f`
+- Backup timer status: `systemctl list-timers | grep genlayer`
+
+---
+
+## 📌 Roadmap
+
+- [ ] Add **S3/Cloud backup support**
+- [ ] Run under dedicated non-root service user
+- [ ] Installer container image
+- [ ] Prebuilt Grafana dashboards
+
+---
+
+## 📝 License
+
+MIT License © 2025 **Validatrium**

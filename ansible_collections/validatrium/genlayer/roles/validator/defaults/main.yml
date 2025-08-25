@@ -1,0 +1,29 @@
+---
+# Required
+zksync_http: ""
+zksync_ws: ""
+genlayer_password: ""
+backup_passphrase: ""
+
+# "latest" to auto-detect via lookup plugin; or pin "v0.3.10"
+genlayer_version: "latest"
+
+# Optional LLM keys
+heuristkey: ""
+comput3key: ""
+iointelligence_api_key: ""
+
+# Paths
+install_root: /opt/genlayer
+data_dir: /var/lib/genlayer
+env_dir: /etc/genlayer
+secrets_dir: /etc/genlayer/secret
+env_file: /etc/genlayer/genlayer.env
+addr_file: /etc/genlayer/validator.address
+backup_dir: /var/backups/genlayer
+service_name: genlayernode.service
+
+# Consensus constants
+consensus_main: "0xe30293d600fF9B2C865d91307826F28006A458f4"
+consensus_data: "0x2a50afD9d3E0ACC824aC4850d7B4c5561aB5D27a"
+genesis_block: 817855

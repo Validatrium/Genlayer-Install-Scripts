@@ -1,0 +1,11 @@
+namespace: validatrium
+name: genlayer
+version: 1.0.0
+readme: README.md
+license: MIT
+authors:
+  - Validatrium <ops@validatrium.example>
+description: "Install and manage GenLayer validator nodes with encrypted key backups (systemd + daily backup timer)."
+dependencies: {}
+repository: "https://example.com/validatrium/genlayer-collection"
+issues: "https://example.com/validatrium/genlayer-collection/issues"

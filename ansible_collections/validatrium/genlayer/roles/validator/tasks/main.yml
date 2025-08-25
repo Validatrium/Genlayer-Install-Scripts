@@ -1,0 +1,154 @@
+---
+- name: Validate required variables
+  assert:
+    that:
+      - zksync_http | length > 0
+      - zksync_ws | length > 0
+      - genlayer_password | length > 0
+      - backup_passphrase | length > 0
+    fail_msg: "Set zksync_http, zksync_ws, genlayer_password, backup_passphrase!"
+
+- name: Include Docker & base tool tasks
+  include_tasks: docker.yml
+
+- name: Create directories
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ install_root }}" }
+    - { path: "{{ data_dir }}" }
+    - { path: "{{ backup_dir }}" }
+    - { path: "{{ env_dir }}" }
+    - { path: "{{ secrets_dir }}", mode: "0700" }
+
+- name: Resolve effective version
+  set_fact:
+    effective_version: >-
+      {{ (genlayer_version == 'latest')
+         | ternary(lookup('validatrium.genlayer.gl_latest_version'),
+                   genlayer_version) }}
+
+- name: Download GenLayer release tarball
+  get_url:
+    url: "https://storage.googleapis.com/gh-af/genlayer-node/bin/amd64/{{ effective_version }}/genlayer-node-linux-amd64-{{ effective_version }}.tar.gz"
+    dest: "/tmp/genlayer-{{ effective_version }}.tar.gz"
+    mode: '0644'
+
+- name: Unpack GenLayer under versioned dir
+  unarchive:
+    src: "/tmp/genlayer-{{ effective_version }}.tar.gz"
+    dest: "{{ install_root }}/{{ effective_version }}"
+    remote_src: true
+  notify: [ "daemon-reload" ]
+
+- name: Point /opt/genlayer/current symlink to this version
+  file:
+    src: "{{ install_root }}/{{ effective_version }}"
+    dest: "{{ install_root }}/current"
+    state: link
+    force: true
+
+- name: Ensure configs directory exists
+  file:
+    path: "{{ install_root }}/current/configs/node"
+    state: directory
+    mode: '0755'
+
+- name: Write config.yaml
+  template:
+    src: "config.yaml.j2"
+    dest: "{{ install_root }}/current/configs/node/config.yaml"
+    mode: '0644'
+
+- name: Write secrets (0600)
+  copy:
+    dest: "{{ item.dest }}"
+    mode: '0600'
+    content: "{{ item.content }}"
+  no_log: true
+  loop:
+    - { dest: "{{ secrets_dir }}/node_password", content: "{{ genlayer_password }}" }
+    - { dest: "{{ secrets_dir }}/backup_passphrase", content: "{{ backup_passphrase }}" }
+
+- name: Write env file (0600)
+  copy:
+    dest: "{{ env_file }}"
+    mode: '0600'
+    content: |
+      GENLAYER_PASSWORD={{ genlayer_password | quote }}
+      BACKUP_PASSPHRASE={{ backup_passphrase | quote }}
+      HEURISTKEY={{ heuristkey }}
+      COMPUT3KEY={{ comput3key }}
+      IOINTELLIGENCE_API_KEY={{ iointelligence_api_key }}
+
+- name: Precompile GenVM wasm modules (best-effort)
+  shell: |
+    set -e
+    cd "{{ install_root }}/current"
+    if [[ -x "./third_party/genvm/bin/genvm" ]]; then
+      ./third_party/genvm/bin/genvm precompile || true
+    fi
+  args:
+    warn: false
+  changed_when: false
+
+- name: Check for compose file
+  stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ install_root }}/current/docker-compose.yml"
+    - "{{ install_root }}/current/docker-compose.yaml"
+    - "{{ install_root }}/current/compose.yml"
+  register: compose_stats
+
+- name: Bring up WebDriver via docker compose if present
+  when: compose_stats.results | selectattr('stat.exists', 'equalto', True) | list | length > 0
+  shell: |
+    cd "{{ install_root }}/current"
+    docker compose up -d
+  args:
+    warn: false
+
+- name: Handle validator account & backups
+  include_tasks: account.yml
+
+- name: Install systemd unit for genlayer node
+  template:
+    src: "genlayernode.service.j2"
+    dest: "/etc/systemd/system/{{ service_name }}"
+    mode: '0644'
+  notify: [ "daemon-reload", "restart-genlayer" ]
+
+- name: Install genlayer-backup.service
+  template:
+    src: "genlayer-backup.service.j2"
+    dest: /etc/systemd/system/genlayer-backup.service
+    mode: '0644'
+  notify: [ "daemon-reload" ]
+
+- name: Install genlayer-backup.timer
+  template:
+    src: "genlayer-backup.timer.j2"
+    dest: /etc/systemd/system/genlayer-backup.timer
+    mode: '0644'
+  notify: [ "daemon-reload" ]
+
+- name: Enable and start services
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - "{{ service_name }}"
+    - genlayer-backup.timer
+
+- name: Run doctor (best-effort)
+  shell: |
+    set -e
+    cd "{{ install_root }}/current"
+    ./bin/genlayernode doctor || true
+  args:
+    warn: false
+  changed_when: false

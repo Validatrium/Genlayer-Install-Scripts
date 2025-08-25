@@ -1,0 +1,23 @@
+[Unit]
+Description=GenLayer Node
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ install_root }}/current
+EnvironmentFile={{ env_file }}
+ExecStart=/bin/bash -lc './bin/genlayernode run -c $(pwd)/configs/node/config.yaml --password "${GENLAYER_PASSWORD}"'
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_CHOWN CAP_DAC_OVERRIDE CAP_SETUID CAP_SETGID
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

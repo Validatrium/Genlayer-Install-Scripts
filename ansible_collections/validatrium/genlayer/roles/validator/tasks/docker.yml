@@ -1,0 +1,51 @@
+---
+- name: Install prerequisite packages
+  apt:
+    update_cache: true
+    state: present
+    name:
+      - ca-certificates
+      - curl
+      - wget
+      - jq
+      - tar
+      - coreutils
+      - systemd
+      - gpg
+      - lsb-release
+
+- name: Check if docker is installed
+  command: docker --version
+  register: docker_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Install Docker repository and engine
+  when: docker_check.rc != 0
+  block:
+    - name: Add Docker GPG key
+      get_url:
+        url: "https://download.docker.com/linux/{{ ansible_facts.os_family | lower == 'debian' | ternary('debian','ubuntu') }}/gpg"
+        dest: /etc/apt/keyrings/docker.gpg
+        mode: '0644'
+    - name: Add Docker APT repo
+      copy:
+        dest: /etc/apt/sources.list.d/docker.list
+        mode: '0644'
+        content: |
+          deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/{{ ansible_facts.os_family | lower == 'debian' | ternary('debian','ubuntu') }} {{ ansible_facts.distribution_release }} stable
+    - name: Install Docker engine
+      apt:
+        update_cache: true
+        state: present
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+    - name: Ensure docker is enabled
+      systemd:
+        name: docker
+        enabled: true
+        state: started

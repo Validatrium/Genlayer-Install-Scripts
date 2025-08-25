@@ -1,0 +1,9 @@
+---
+- name: daemon-reload
+  systemd:
+    daemon_reload: true
+
+- name: restart-genlayer
+  systemd:
+    name: "{{ service_name }}"
+    state: restarted

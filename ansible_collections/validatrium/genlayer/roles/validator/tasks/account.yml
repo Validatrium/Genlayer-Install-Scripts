@@ -1,0 +1,40 @@
+---
+- name: Check if validator.address exists
+  stat:
+    path: "{{ addr_file }}"
+  register: addr_stat
+
+- name: Create validator account (once)
+  when: not addr_stat.stat.exists
+  shell: |
+    set -e
+    cd "{{ install_root }}/current"
+    OUT=$(./bin/genlayernode account new -c "$(pwd)/configs/node/config.yaml" --setup --password "$(cat {{ secrets_dir }}/node_password)")
+    echo "$OUT" | awk '/New address:/ {print $3}' | tail -n1 > "{{ addr_file }}"
+    chmod 600 "{{ addr_file }}"
+  args:
+    executable: /bin/bash
+  register: account_new
+  changed_when: true
+  no_log: true
+
+- name: Find existing backups
+  find:
+    paths: "{{ backup_dir }}"
+    patterns: "validator-*.key"
+    file_type: file
+  register: existing_backups
+
+- name: Immediate encrypted key backup (once)
+  when: existing_backups.matched == 0
+  shell: |
+    set -e
+    cd "{{ install_root }}/current"
+    TS=$(date -u +%Y%m%dT%H%M%SZ)
+    DEST="{{ backup_dir }}/validator-${TS}.key"
+    ADDR=$(cat "{{ addr_file }}")
+    ./bin/genlayernode account export       --password "$(cat {{ secrets_dir }}/node_password)"       --address "$ADDR"       --passphrase "$(cat {{ secrets_dir }}/backup_passphrase)"       --path "$DEST"       -c "$(pwd)/configs/node/config.yaml"
+    chmod 600 "$DEST"
+  args:
+    executable: /bin/bash
+  no_log: true

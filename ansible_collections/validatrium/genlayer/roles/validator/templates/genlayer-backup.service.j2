@@ -1,0 +1,16 @@
+[Unit]
+Description=GenLayer Encrypted Key Backup
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile={{ env_file }}
+WorkingDirectory={{ install_root }}/current
+ExecStart=/bin/bash -lc '
+  set -euo pipefail
+  ADDR=$(cat {{ addr_file }})
+  TS=$(date -u +%Y%m%dT%H%M%SZ)
+  DEST={{ backup_dir }}/validator-${TS}.key
+  ./bin/genlayernode account export     --password "${GENLAYER_PASSWORD}"     --address "$ADDR"     --passphrase "${BACKUP_PASSPHRASE}"     --path "$DEST"     -c $(pwd)/configs/node/config.yaml
+  chmod 600 "$DEST"
+'
